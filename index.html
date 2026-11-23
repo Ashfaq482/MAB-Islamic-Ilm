@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f7f3e9">
+<meta name="description" content="Offline-ready Madinah Mushaf with separate QCF V1 and QCF V2 editions.">
+<title>Madinah Mushaf — Complete Quran</title>
+<style>
+:root{--bg:#eee9de;--paper:#fffdf7;--ink:#19170f;--muted:#766f5e;--gold:#9a793b;--line:#d8cba9;--panel:#f7f3e9}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+header{position:sticky;top:0;z-index:10;background:var(--panel);border-bottom:1px solid var(--line);padding:10px max(12px,env(safe-area-inset-left));display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.brand{font-size:14px;font-weight:700;white-space:nowrap}
+.controls{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-left:auto}
+button,input,select{font:inherit}
+button,select,input{border:1px solid var(--line);border-radius:9px;background:var(--paper);color:var(--ink);padding:8px 10px}
+button{cursor:pointer}
+button:disabled{opacity:.4;cursor:default}
+input[type=number]{width:72px}
+#progress{height:3px;background:var(--line)}
+#progress span{display:block;height:100%;width:0;background:var(--gold);transition:width .15s}
+#notice{max-width:760px;margin:12px auto;padding:0 14px;color:var(--muted);font-size:12px;text-align:center}
+#pages{max-width:760px;margin:12px auto 40px;padding:0 10px}
+.mushaf-page{background:var(--paper);border:1px solid var(--line);box-shadow:0 5px 22px #0000000c;margin:0 auto 16px;padding:28px 20px 24px;min-height:740px;position:relative}
+.mushaf-page:before{content:"";position:absolute;inset:9px;border:1px solid #dfd2b2;pointer-events:none}
+.page-top{position:relative;display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:11px;margin:0 5px 12px}
+.surah-title{font-family:"Times New Roman",serif;text-align:center;font-size:20px;color:var(--gold);border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:9px 0;margin:9px 5px 10px;direction:rtl}
+.mushaf-line{font-family:var(--page-font,serif);direction:rtl;text-align:center;font-size:clamp(18px,4.2vw,30px);line-height:1.55;min-height:41px;white-space:nowrap;overflow-wrap:normal;word-break:normal;overflow:hidden;position:relative;width:100%;box-sizing:border-box}
+.mushaf-line.blank{min-height:30px;line-height:1}
+.mushaf-line.basmala{font-size:clamp(19px,3.6vw,25px);line-height:2.15;white-space:normal;overflow-wrap:normal;word-break:normal;width:100%;max-width:100%;padding:0 8px;overflow:hidden;text-align:center;direction:ltr;unicode-bidi:isolate; font-synthesis:none}
+.page-bottom{text-align:center;color:var(--muted);font-size:11px;margin-top:13px;position:relative}
+.placeholder{height:740px;background:var(--paper);border:1px solid var(--line);margin-bottom:16px;display:grid;place-items:center;color:var(--muted)}
+.loading{font-size:13px}
+.error{color:#a33;padding:16px;text-align:center;font-size:13px}
+#singleNav{display:flex;justify-content:center;gap:12px;align-items:center;padding:4px 0 18px}
+#singleNav[hidden]{display:none}
+body.dark{--bg:#0e0e0b;--paper:#191912;--ink:#eee8d8;--muted:#aaa18b;--gold:#c4a45e;--line:#50462f;--panel:#14140f}
+body.dark .mushaf-page:before{border-color:#51452b}
+@media(max-width:520px){header{gap:6px}.brand{font-size:12px}.controls{margin-left:0;width:100%;justify-content:center}.mushaf-page{padding:24px 12px 20px;min-height:690px}.mushaf-line{font-size:clamp(18px,4.4vw,26px);line-height:1.55;min-height:41px}.placeholder{height:690px}}
+
+/* Surah picker — compact Quran.com-inspired search panel */
+.surah-picker-wrap{position:relative}
+#surahPickerButton{min-width:min(430px,78vw);display:flex;align-items:center;justify-content:space-between;gap:14px;text-align:left;padding:10px 13px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+#surahPickerButton .surah-current{display:flex;align-items:center;gap:10px;min-width:0}
+#surahPickerButton .surah-current-num{width:30px;height:30px;border-radius:9px;background:#eee7d7;display:grid;place-items:center;font-size:13px;flex:none}
+#surahPickerButton .surah-current-name{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#surahPickerButton .surah-current-ar{font-family:serif;font-size:19px;direction:rtl;white-space:nowrap}
+#surahPicker{position:fixed;inset:0;z-index:50;background:#0008;display:none;align-items:flex-start;justify-content:center;padding:7vh 12px 16px}
+#surahPicker.open{display:flex}
+.surah-picker-card{width:min(520px,100%);max-height:86vh;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:18px;box-shadow:0 18px 60px #0004;display:flex;flex-direction:column;overflow:hidden}
+.surah-picker-head{padding:16px;border-bottom:1px solid var(--line)}
+.surah-picker-title{font-weight:700;font-size:17px;margin-bottom:12px}
+#surahSearch{width:100%;padding:12px 14px;border-radius:12px;background:var(--paper);border:1px solid var(--line);font-size:15px}
+#surahList{overflow:auto;padding:6px 10px 12px}
+.surah-option{width:100%;display:flex;align-items:center;gap:12px;border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent;padding:11px 7px;text-align:left;color:var(--ink)}
+.surah-option:active,.surah-option:hover{background:#b89a5520}
+.surah-option-num{width:32px;height:32px;flex:none;border:1px solid var(--line);border-radius:9px;display:grid;place-items:center;font-size:12px;color:var(--muted)}
+.surah-option-info{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.surah-option-en{font-size:14px;font-weight:600}
+.surah-option-meta{font-size:11px;color:var(--muted)}
+.surah-option-ar{font-family:serif;font-size:21px;direction:rtl;white-space:nowrap}
+body.dark #surahPickerButton .surah-current-num{background:#373222}
+@media(max-width:520px){#surahPickerButton{min-width:0;width:min(100%,430px)}#surahPicker{padding-top:5vh}.surah-picker-card{max-height:90vh}}
+
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">مصحف المدينة · Madinah Mushaf</div>
+  <div class="controls">
+    <label style="font-size:12px">Edition
+      <select id="edition" aria-label="Mushaf edition">
+        <option value="v2">QCF V2</option>
+        <option value="v1">QCF V1</option>
+      </select>
+    </label>
+    <label style="font-size:12px">Page <input id="pageNumber" type="number" min="1" max="604" value="1"></label>
+    <button id="goPage">Go</button>
+    <div class="surah-picker-wrap"><button id="surahPickerButton" type="button" aria-haspopup="dialog"><span class="surah-current"><span class="surah-current-num" id="surahCurrentNum">1</span><span class="surah-current-name" id="surahCurrentName">Al-Fatihah</span><span class="surah-current-ar" id="surahCurrentAr">الْفَاتِحَة</span></span><span aria-hidden="true">⌄</span></button></div>
+    <label style="font-size:12px">Juz <select id="juzJump" aria-label="Jump to Juz"></select></label>
+    <select id="viewMode" aria-label="Reading mode">
+      <option value="page">Page by page</option>
+      <option value="scroll">Scrolling</option>
+    </select>
+    <button id="bookmark">☆ Bookmark</button>
+    <button id="resume">↩ Continue</button>
+    <button id="theme">☾</button>
+  </div>
+</header>
+<div id="surahPicker" role="dialog" aria-modal="true" aria-label="Choose Surah">
+ <div class="surah-picker-card">
+  <div class="surah-picker-head"><div class="surah-picker-title">Choose Surah</div><input id="surahSearch" type="search" placeholder="Search Surah by name or number…" autocomplete="off"></div>
+  <div id="surahList"></div>
+ </div>
+</div>
+
+<div id="progress"><span id="progressBar"></span></div>
+<div id="notice">Online edition: Quran page data and matching fonts load from the Mushaf dataset. Internet connection is required.</div>
+<div id="singleNav" hidden>
+  <button id="prev">← Previous</button>
+  <span id="pageLabel">Page 1 / 604</span>
+  <button id="next">Next →</button>
+</div>
+<div id="gestureHint" style="text-align:center;color:var(--muted);font-size:11px;margin:-10px 0 12px">Tip: Swipe left/right to change pages</div>
+<main id="pages"></main>
+<script>
+(() => {
+  const TOTAL=604;
+  const surahNames=['الْفَاتِحَة','الْبَقَرَة','آلِ عِمْرَان','النِّسَاء','الْمَائِدَة','الْأَنْعَام','الْأَعْرَاف','الْأَنْفَال','التَّوْبَة','يُونُس','هُود','يُوسُف','الرَّعْد','إِبْرَاهِيم','الْحِجْر','النَّحْل','الْإِسْرَاء','الْكَهْف','مَرْيَم','طٰهٰ','الْأَنْبِيَاء','الْحَجّ','الْمُؤْمِنُون','النُّور','الْفُرْقَان','الشُّعَرَاء','النَّمْل','الْقَصَص','الْعَنْكَبُوت','الرُّوم','لُقْمَان','السَّجْدَة','الْأَحْزَاب','سَبَأ','فَاطِر','يٰسٓ','الصَّافَّات','صٓ','الزُّمَر','غَافِر','فُصِّلَت','الشُّورَى','الزُّخْرُف','الدُّخَان','الْجَاثِيَة','الْأَحْقَاف','مُحَمَّد','الْفَتْح','الْحُجُرَات','قٓ','الذَّارِيَات','الطُّور','النَّجْم','الْقَمَر','الرَّحْمَٰن','الْوَاقِعَة','الْحَدِيد','الْمُجَادِلَة','الْحَشْر','الْمُمْتَحَنَة','الصَّفّ','الْجُمُعَة','الْمُنَافِقُون','التَّغَابُن','الطَّلَاق','التَّحْرِيم','الْمُلْك','الْقَلَم','الْحَاقَّة','الْمَعَارِج','نُوح','الْجِنّ','الْمُزَّمِّل','الْمُدَّثِّر','الْقِيَامَة','الْإِنْسَان','الْمُرْسَلَات','النَّبَأ','النَّازِعَات','عَبَسَ','التَّكْوِير','الْإِنْفِطَار','الْمُطَفِّفِين','الْإِنْشِقَاق','الْبُرُوج','الطَّارِق','الْأَعْلَى','الْغَاشِيَة','الْفَجْر','الْبَلَد','الشَّمْس','اللَّيْل','الضُّحَى','الشَّرْح','التِّين','الْعَلَق','الْقَدْر','الْبَيِّنَة','الزَّلْزَلَة','الْعَادِيَات','الْقَارِعَة','التَّكَاثُر','الْعَصْر','الْهُمَزَة','الْفِيل','قُرَيْش','الْمَاعُون','الْكَوْثَر','الْكَافِرُون','النَّصْر','الْمَسَد','الْإِخْلَاص','الْفَلَق','النَّاس'];
+  const surahEnglish=["Al-Fatihah", "Al-Baqarah", "Ali Imran", "An-Nisa", "Al-Maidah", "Al-Anam", "Al-Araf", "Al-Anfal", "At-Tawbah", "Yunus", "Hud", "Yusuf", "Ar-Rad", "Ibrahim", "Al-Hijr", "An-Nahl", "Al-Isra", "Al-Kahf", "Maryam", "Ta-Ha", "Al-Anbiya", "Al-Hajj", "Al-Muminun", "An-Nur", "Al-Furqan", "Ash-Shuara", "An-Naml", "Al-Qasas", "Al-Ankabut", "Ar-Rum", "Luqman", "As-Sajdah", "Al-Ahzab", "Saba", "Fatir", "Ya-Sin", "As-Saffat", "Sad", "Az-Zumar", "Ghafir", "Fussilat", "Ash-Shura", "Az-Zukhruf", "Ad-Dukhan", "Al-Jathiyah", "Al-Ahqaf", "Muhammad", "Al-Fath", "Al-Hujurat", "Qaf", "Adh-Dhariyat", "At-Tur", "An-Najm", "Al-Qamar", "Ar-Rahman", "Al-Waqiah", "Al-Hadid", "Al-Mujadilah", "Al-Hashr", "Al-Mumtahanah", "As-Saff", "Al-Jumuah", "Al-Munafiqun", "At-Taghabun", "At-Talaq", "At-Tahrim", "Al-Mulk", "Al-Qalam", "Al-Haqqah", "Al-Maarij", "Nuh", "Al-Jinn", "Al-Muzzammil", "Al-Muddaththir", "Al-Qiyamah", "Al-Insan", "Al-Mursalat", "An-Naba", "An-Naziat", "Abasa", "At-Takwir", "Al-Infitar", "Al-Mutaffifin", "Al-Inshiqaq", "Al-Buruj", "At-Tariq", "Al-Ala", "Al-Ghashiyah", "Al-Fajr", "Al-Balad", "Ash-Shams", "Al-Layl", "Ad-Duha", "Ash-Sharh", "At-Tin", "Al-Alaq", "Al-Qadr", "Al-Bayyinah", "Az-Zalzalah", "Al-Adiyat", "Al-Qariah", "At-Takathur", "Al-Asr", "Al-Humazah", "Al-Fil", "Quraysh", "Al-Maun", "Al-Kawthar", "Al-Kafirun", "An-Nasr", "Al-Masad", "Al-Ikhlas", "Al-Falaq", "An-Nas"];
+  const surahStartPages=[1,2,50,77,106,128,151,177,187,208,221,235,249,255,262,267,282,293,305,312,322,332,342,350,359,367,377,385,396,404,411,415,418,428,434,440,446,453,458,467,477,483,489,496,499,502,507,511,515,518,520,523,526,528,531,534,537,542,545,549,551,553,554,556,558,560,562,564,566,568,570,572,574,575,577,578,580,582,583,585,586,587,587,589,590,591,591,592,593,594,595,595,596,596,597,597,598,598,599,599,600,600,601,601,601,602,602,602,603,603,603,604,604,604];
+  const juzStartPages=[1,22,42,62,82,102,122,142,162,182,201,222,242,262,282,302,322,342,362,382,401,422,442,462,482,502,522,542,562,582];
+  const V2_RAW='https://raw.githubusercontent.com/zonetecde/mushaf-layout/refs/heads/v2/mushaf/QPC2/page-';
+  const V1_RAW='https://raw.githubusercontent.com/zonetecde/mushaf-layout/refs/heads/v2/mushaf/QPC1/page-';
+  const FONT_BASE='https://verses.quran.foundation/fonts/quran/hafs/';
+  const DATASET_FONT_BASE='https://raw.githubusercontent.com/zonetecde/mushaf-layout/refs/heads/v2/fonts/';
+  const JUZ_START_KEYS=['1:1','2:142','2:253','3:93','4:24','4:148','5:82','6:111','7:88','8:41','9:93','11:6','12:53','15:1','17:1','18:75','21:1','23:1','25:21','27:56','29:46','33:31','36:28','39:32','41:47','46:1','51:31','58:1','67:1','78:1'];
+  const edition=document.getElementById('edition');
+  let editionVersion='v2';
+  const pages=document.getElementById('pages');
+  const pageInput=document.getElementById('pageNumber');
+  const juzJump=document.getElementById('juzJump');
+  const mode=document.getElementById('viewMode');
+  function activeSurahPages(){return surahStartPages;}
+  function activeJuzPages(){return juzStartPages;}
+  juzStartPages.forEach((page,i)=>{const o=document.createElement('option');o.value=page;o.textContent='Juz '+(i+1);juzJump.appendChild(o);});
+  const picker=document.getElementById('surahPicker'), pickerButton=document.getElementById('surahPickerButton'), searchInput=document.getElementById('surahSearch'), surahList=document.getElementById('surahList');
+  function updateSurahButton(){const sp=activeSurahPages();let i=0;for(let j=0;j<sp.length;j++)if(sp[j]<=current)i=j;document.getElementById('surahCurrentNum').textContent=String(i+1);document.getElementById('surahCurrentName').textContent=surahEnglish[i];document.getElementById('surahCurrentAr').textContent=surahNames[i];}
+  function normalizeArabicSearch(value){return String(value||'').normalize('NFKD').replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g,'').replace(/[أإآٱ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/ـ/g,'').toLowerCase().trim();}
+  function renderSurahList(query=''){surahList.innerHTML='';const q=query.trim().toLowerCase();const qa=normalizeArabicSearch(query);surahNames.forEach((ar,i)=>{const en=surahEnglish[i];const arNorm=normalizeArabicSearch(ar);if(q&&!String(i+1).includes(q)&&!en.toLowerCase().includes(q)&&!ar.includes(query.trim())&&!(qa&&arNorm.includes(qa)))return;const b=document.createElement('button');b.type='button';b.className='surah-option';b.innerHTML=`<span class="surah-option-num">${i+1}</span><span class="surah-option-info"><span class="surah-option-en">${en}</span><span class="surah-option-meta">Surah ${i+1} · Page ${activeSurahPages()[i]}</span></span><span class="surah-option-ar" dir="rtl"></span>`;b.querySelector('.surah-option-ar').textContent=ar;b.onclick=()=>{picker.classList.remove('open');searchInput.value='';jumpToPage(activeSurahPages()[i]);updateSurahButton();notice.textContent=`Surah ${i+1} · ${en} · Page ${activeSurahPages()[i]}`;};surahList.appendChild(b);});}
+  pickerButton.onclick=()=>{picker.classList.add('open');searchInput.value='';renderSurahList();searchInput.focus();};
+  searchInput.oninput=()=>renderSurahList(searchInput.value);
+  picker.onclick=e=>{if(e.target===picker)picker.classList.remove('open');};
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')picker.classList.remove('open');});
+  renderSurahList();
+
+  const notice=document.getElementById('notice');
+  const singleNav=document.getElementById('singleNav');
+  const loaded=new Map(), fontLoaded=new Set();
+  let current=1, observer=null;
+
+  function makePage(n){
+    const el=document.createElement('section');
+    el.className='mushaf-page'; el.id='page-'+n; el.dataset.page=n;
+    el.innerHTML=`<div class="page-top"><span>مصحف المدينة النبوية</span><span>${n} / ${TOTAL}</span></div><div class="loading" style="text-align:center">Loading page ${n}…</div>`;
+    return el;
+  }
+  async function loadFont(n){
+    const key=editionVersion+'-'+n;
+    if(fontLoaded.has(key)) return;
+    const url=editionVersion==='v1'
+      ? `${DATASET_FONT_BASE}QPC1/p${String(n).padStart(3,'0')}.woff2`
+      : `${DATASET_FONT_BASE}QPC2/p${String(n).padStart(3,'0')}.woff2`;
+    const face=new FontFace('QCFPage'+editionVersion+n,`url("${url}") format("woff2")`);
+    await face.load(); document.fonts.add(face); fontLoaded.add(key);
+  }
+  async function loadBasmalaFont(){
+    const key='basmala-'+editionVersion;
+    if(fontLoaded.has(key)) return;
+    const folder=editionVersion==='v1'?'QPC1':'QPC2';
+    const file=editionVersion==='v1'?'QPC1BSML.ttf':'QPC2BSML.ttf';
+    const face=new FontFace('QCFBasmala'+editionVersion,
+      `url("${DATASET_FONT_BASE}${folder}/${file}") format("truetype")`);
+    await face.load(); document.fonts.add(face); fontLoaded.add(key);
+  }
+  async function getData(n){
+    const key=editionVersion+'-'+n;
+    if(loaded.has(key)) return loaded.get(key);
+    const p=String(n).padStart(3,'0');
+    const base=editionVersion==='v1'?V1_RAW:V2_RAW;
+    const res=await fetch(base+p+'.json');
+    if(!res.ok) throw new Error('Page data unavailable (HTTP '+res.status+'). Check your internet connection.');
+    const data=await res.json(); loaded.set(key,data); return data;
+  }
+  async function renderPage(n,el){
+    if(el.dataset.ready==='1'||el.dataset.loading==='1') return;
+    el.dataset.loading='1';
+    try{
+      const [data]=await Promise.all([getData(n),loadFont(n)]);
+      if((data.lines||[]).some(line=>(line.type||'')==='basmala' || (line.type||'')==='basmallah')) await loadBasmalaFont();
+      el.innerHTML='';
+      const top=document.createElement('div');top.className='page-top';
+      top.innerHTML=`<span>مصحف المدينة النبوية · ${editionVersion.toUpperCase()}</span><span>${n} / ${TOTAL}</span>`;
+      el.appendChild(top);
+      // Page 77 begins Surah An-Nisa in both QCF editions. The source page
+      // JSON omits its surah-header line, so render the same heading used on
+      // other surah-opening pages without changing any Quran text or line data.
+      if(n===77 && !(data.lines||[]).some(line=>line.type==='surah-header'||line.type==='surah_name')){
+        const title=document.createElement('div');
+        title.className='surah-title';
+        title.textContent='سورة النساء';
+        el.appendChild(title);
+      }
+      for(const line of data.lines||[]){
+        const type=line.type||'text';
+        if(type==='surah_name' || type==='surah-header'){
+          const title=document.createElement('div');title.className='surah-title';
+          if(type==='surah-header') title.textContent=line.text||'';
+          else {
+            const surahNo=Number(line.decor?.surah||0);
+            title.textContent=surahNames[surahNo-1] ? 'سُورَةُ '+surahNames[surahNo-1] : '۞';
+          }
+          el.appendChild(title);continue;
+        }
+        const row=document.createElement('div');row.className='mushaf-line';
+        row.style.fontFamily=`"QCFPage${editionVersion}${n}",serif`;
+        if(type==='blank'){row.classList.add('blank');row.textContent='';}
+        else if(type==='basmala' || type==='basmallah'){ 
+          // Never fall back across editions: QPC V1 glyphs must use QPC1BSML,
+          // and QPC V2 glyphs must use QPC2BSML.
+          const glyphKey=editionVersion==='v1'?'qpcV1':'qpcV2';
+          const glyph=line[glyphKey];
+          if(!glyph) throw new Error(`Missing ${glyphKey} Basmala glyph for this edition.`);
+          row.classList.add('basmala');
+          row.style.fontFamily=`"QCFBasmala${editionVersion}",serif`;
+          row.textContent=glyph;
+        } else {
+          const glyphKey=editionVersion==='v1'?'qpcV1':'qpcV2';
+          row.textContent=(line.words||[]).map(w=>w[glyphKey]||'').filter(Boolean).join('');
+        }
+        el.appendChild(row);
+      }
+      const bottom=document.createElement('div');bottom.className='page-bottom';bottom.textContent=''+n;el.appendChild(bottom);
+      el.dataset.ready='1';el.dataset.loading='0';
+    }catch(e){
+      el.dataset.loading='0';el.innerHTML=`<div class="error">${e.message}<br><button onclick="location.reload()">Retry</button></div>`;
+    }
+  }
+  function syncProgress(){
+    document.getElementById('progressBar').style.width=(current/TOTAL*100)+'%';
+    document.getElementById('pageLabel').textContent=`Page ${current} / ${TOTAL}`;
+    localStorage.setItem('madinah-quran-last-page-'+editionVersion,String(current));
+    updateBookmark();
+  }
+  function setPage(n){
+    current=Math.max(1,Math.min(TOTAL,Number(n)||1));pageInput.value=current;
+    syncProgress();
+    document.getElementById('pageLabel').textContent=`Page ${current} / ${TOTAL}`;
+    const sp=activeSurahPages(), jp=activeJuzPages();
+    updateSurahButton();
+    const jIdx=jp.reduce((best,p,i)=>p<=current?i:best,0);juzJump.value=String(jp[jIdx]);
+    document.getElementById('prev').disabled=current===1;
+    document.getElementById('next').disabled=current===TOTAL;
+    if(mode.value==='page'){
+      pages.innerHTML='';const el=makePage(current);pages.appendChild(el);renderPage(current,el);
+      singleNav.hidden=false;window.scrollTo({top:0,behavior:'smooth'});
+    }
+  }
+  function buildScroll(targetPage=current){
+    // Keep the reader at the same Mushaf page when changing reading mode.
+    const keepPage=Math.max(1,Math.min(TOTAL,Number(targetPage)||current||1));
+    current=keepPage;
+    pages.innerHTML='';
+    for(let n=1;n<=TOTAL;n++) pages.appendChild(makePage(n));
+    singleNav.hidden=true;
+    if(observer) observer.disconnect();
+    observer=new IntersectionObserver(entries=>{
+      for(const entry of entries) if(entry.isIntersecting){
+        const n=Number(entry.target.dataset.page);renderPage(n,entry.target);
+        if(n===current-1||n===current||n===current+1) pageInput.value=n;
+      }
+    },{rootMargin:'900px 0px'});
+    document.querySelectorAll('.mushaf-page').forEach(el=>observer.observe(el));
+    requestAnimationFrame(()=>{
+      const target=document.getElementById('page-'+keepPage);
+      if(target){
+        renderPage(keepPage,target);
+        target.scrollIntoView({block:'start',behavior:'auto'});
+      }
+      current=keepPage;
+      pageInput.value=keepPage;
+      document.getElementById('pageLabel').textContent=`Page ${keepPage} / ${TOTAL}`;
+      document.getElementById('progressBar').style.width=(keepPage/TOTAL*100)+'%';
+      updateSurahButton();
+      const jp=activeJuzPages();
+      const jIdx=jp.reduce((bestIdx,p,i)=>p<=keepPage?i:bestIdx,0);
+      juzJump.value=String(jp[jIdx]);
+    });
+  }
+  edition.onchange=()=>{
+    // Switch the Mushaf edition immediately. Navigation data is optional for
+    // rendering; a failed local navigation.json fetch must never block V1/V2.
+    editionVersion=edition.value;
+    loaded.clear(); fontLoaded.clear();
+    const targetPage=current;
+    if(mode.value==='page') setPage(targetPage);
+    else {
+      buildScroll();
+      requestAnimationFrame(()=>{const target=document.getElementById('page-'+targetPage);if(target)target.scrollIntoView();});
+    }
+    updateSurahButton();
+    notice.textContent=editionVersion.toUpperCase()+' selected · matching page data and fonts.';
+  };
+  juzJump.onchange=()=>jumpToPage(Number(juzJump.value));
+  function jumpToPage(n){
+    const target=Math.max(1,Math.min(TOTAL,Number(n)||1));
+    pageInput.value=target;
+    if(mode.value==='page') setPage(target);
+    else {const el=document.getElementById('page-'+target);if(el){el.scrollIntoView({behavior:'smooth'});current=target;localStorage.setItem('madinah-quran-last-page-'+editionVersion,String(target));}}
+  }
+  document.getElementById('goPage').onclick=()=>{
+    const n=Math.max(1,Math.min(TOTAL,Number(pageInput.value)||1));
+    if(mode.value==='page') setPage(n);
+    else {const el=document.getElementById('page-'+n);if(el)el.scrollIntoView({behavior:'smooth'});current=n;localStorage.setItem('madinah-quran-last-page-'+editionVersion,String(n));}
+  };
+  document.getElementById('prev').onclick=()=>setPage(current-1);
+  document.getElementById('next').onclick=()=>setPage(current+1);
+  mode.onchange=()=>{const keepPage=current;if(mode.value==='page')setPage(keepPage);else buildScroll(keepPage);};
+  document.getElementById('theme').onclick=()=>document.body.classList.toggle('dark');
+  const bm=document.getElementById('bookmark');
+  function updateBookmark(){const b=Number(localStorage.getItem('madinah-quran-bookmark-'+editionVersion)||1);bm.textContent=(b===current?'★':'☆')+' Bookmark';}
+  bm.onclick=()=>{localStorage.setItem('madinah-quran-bookmark-'+editionVersion,String(current));updateBookmark();notice.textContent='Bookmark saved: page '+current;};
+  document.getElementById('resume').onclick=()=>{
+    const saved=Number(localStorage.getItem('madinah-quran-bookmark-'+editionVersion)||localStorage.getItem('madinah-quran-last-page-'+editionVersion)||1);
+    jumpToPage(saved);notice.textContent='Opened saved reading position: page '+saved;
+  };
+  window.addEventListener('scroll',()=>{
+    if(mode.value!=='scroll')return;
+    const els=[...document.querySelectorAll('.mushaf-page')];
+    let best=1,dist=Infinity;
+    for(const el of els){const d=Math.abs(el.getBoundingClientRect().top-90);if(d<dist){dist=d;best=Number(el.dataset.page);}}
+    current=best;pageInput.value=best;document.getElementById('pageLabel').textContent=`Page ${best} / ${TOTAL}`;
+    const sp=activeSurahPages(), jp=activeJuzPages();
+    updateSurahButton();
+    const jIdx=jp.reduce((bestIdx,p,i)=>p<=best?i:bestIdx,0);juzJump.value=String(jp[jIdx]);
+    document.getElementById('progressBar').style.width=(best/TOTAL*100)+'%';
+    updateBookmark();
+    localStorage.setItem('madinah-quran-last-page-'+editionVersion,String(current));
+  },{passive:true});
+
+  // Touch gestures for page-by-page reading on phones.
+  let touchStartX=0, touchStartY=0;
+  pages.addEventListener('touchstart',e=>{
+    if(mode.value!=='page' || !e.changedTouches.length) return;
+    touchStartX=e.changedTouches[0].clientX;
+    touchStartY=e.changedTouches[0].clientY;
+  },{passive:true});
+  pages.addEventListener('touchend',e=>{
+    if(mode.value!=='page' || !e.changedTouches.length) return;
+    const dx=e.changedTouches[0].clientX-touchStartX;
+    const dy=e.changedTouches[0].clientY-touchStartY;
+    if(Math.abs(dx)>55 && Math.abs(dx)>Math.abs(dy)*1.25){
+      // In an RTL Mushaf, swipe left advances to the next page.
+      if(dx<0) setPage(current+1); else setPage(current-1);
+    }
+  },{passive:true});
+
+  // Keyboard navigation for tablets and desktop browsers.
+  document.addEventListener('keydown',e=>{
+    if(mode.value!=='page' || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+    if(e.key==='ArrowLeft'){e.preventDefault();setPage(current+1);}
+    if(e.key==='ArrowRight'){e.preventDefault();setPage(current-1);}
+  });
+
+  const saved=Number(localStorage.getItem('madinah-quran-last-page-'+editionVersion)||localStorage.getItem('madinah-quran-bookmark-'+editionVersion)||1);
+  current=(saved>=1&&saved<=TOTAL)?saved:1;
+  updateBookmark();updateSurahButton();setPage(current);notice.textContent='Ready · Surah navigation is built in.';
+})();
+</script>
+</body>
+</html>
